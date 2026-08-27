@@ -77,65 +77,208 @@ class SalesJournalResource extends Resource
                 ->columns(2)
                 ->schema([
 
-                    /*
-                    * VENDOR
-                    */
-                    Select::make('dr_account')
-                        ->label('Vendor')
-                        ->options(
-                            Account::query()
-                                ->where(
-                                    'type_id',
-                                    Account::TYPE_VENDOR
-                                )
-                                ->orderBy('name')
-                                ->pluck('name', 'id')
-                                ->toArray()
+            /*
+            |--------------------------------------------------------------------------
+            | VENDOR
+            |--------------------------------------------------------------------------
+            */
+            Select::make('dr_account')
+                ->label('Vendor')
+                ->options(
+                    Account::query()
+                        ->where(
+                            'type_id',
+                            Account::TYPE_VENDOR
                         )
-                        ->live()
-                        ->afterStateUpdated(
-                            function (Set $set): void {
-                                /*
-                                * Reset subsidiary account
-                                * when vendor changes.
-                                */
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()
+                )
+                ->searchable()
+                ->preload()
+                ->live()
+                ->afterStateUpdated(
+                    function (Set $set): void {
+                        // Reset vendor account when vendor changes
+                        $set('dr_sub_account', null);
+                    }
+                )
+
+                ->suffixAction(
+                    Action::make('addVendor')
+                        ->label('Add Vendor')
+                        ->icon('heroicon-o-plus')
+                        ->modalHeading('Add New Vendor')
+                        ->modalSubmitActionLabel('Create Vendor')
+                        ->modalWidth('2xl')
+
+                        ->schema([
+
+                            TextInput::make('name')
+                                ->label('Vendor Name')
+                                ->placeholder('Enter vendor name')
+                                ->required()
+                                ->maxLength(255)
+                                ->columnSpanFull(),
+
+                            TextInput::make('phone')
+                                ->label('Phone')
+                                ->placeholder('+880 1XXXXXXXXX')
+                                ->tel()
+                                ->maxLength(30),
+
+                            TextInput::make('email')
+                                ->label('Email')
+                                ->placeholder('vendor@example.com')
+                                ->email()
+                                ->maxLength(255),
+
+                            TextInput::make('website')
+                                ->label('Website')
+                                ->placeholder('https://example.com')
+                                ->url()
+                                ->maxLength(255)
+                                ->columnSpanFull(),
+
+                            Textarea::make('address')
+                                ->label('Address')
+                                ->placeholder('Enter vendor address')
+                                ->rows(3)
+                                ->columnSpanFull(),
+
+                        ])
+
+                        ->action(
+                            function (
+                                array $data,
+                                Set $set
+                            ): void {
+
+                                $vendor = Account::create([
+                                    'name' => $data['name'],
+                                    'phone' => $data['phone'] ?? null,
+                                    'email' => $data['email'] ?? null,
+                                    'website' => $data['website'] ?? null,
+                                    'address' => $data['address'] ?? null,
+
+                                    'type_id' => Account::TYPE_VENDOR,
+                                ]);
+
+                                // Automatically select the new vendor
+                                $set('dr_account', $vendor->id);
+
+                                // Reset vendor subsidiary account
                                 $set('dr_sub_account', null);
                             }
                         )
-                        ->required(),
+                )
 
-                    /*
-                    * VENDOR SUBSIDIARY ACCOUNT
-                    */
-                    Select::make('dr_sub_account')
-                        ->label('Vendor Account')
-                        ->options(
-                            function (callable $get) {
+                ->required(),
 
-                                $accountId =
-                                    $get('dr_account');
+                    
+                /*
+                |--------------------------------------------------------------------------
+                | VENDOR SUBSIDIARY ACCOUNT
+                |--------------------------------------------------------------------------
+                */
+                Select::make('dr_sub_account')
+                    ->label('Vendor Account')
 
-                                if (! $accountId) {
-                                    return [];
-                                }
+                    ->options(
+                        function (Get $get) {
 
-                                return SubsidiaryAccount::query()
-                                    ->where(
-                                        'account_id',
-                                        $accountId
-                                    )
-                                    ->where(
-                                        'type_id',
-                                        SubsidiaryAccount::TYPE_VENDOR
-                                    )
-                                    ->orderBy('name')
-                                    ->pluck('name', 'id')
-                                    ->toArray();
+                            $accountId = $get('dr_account');
+
+                            if (! $accountId) {
+                                return [];
                             }
-                        )
-                        ->required(),
 
+                            return SubsidiaryAccount::query()
+                                ->where(
+                                    'account_id',
+                                    $accountId
+                                )
+                                ->where(
+                                    'type_id',
+                                    SubsidiaryAccount::TYPE_VENDOR
+                                )
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray();
+                        }
+                    )
 
+                    ->searchable()
+                    ->preload()
+
+                    ->suffixAction(
+                        Action::make('addVendorAccount')
+                            ->label('Add Account')
+                            ->icon('heroicon-o-plus')
+                            ->modalHeading('Add Vendor Account')
+                            ->modalSubmitActionLabel('Create Account')
+                            ->modalWidth('lg')
+
+                            ->visible(
+                                fn (Get $get): bool =>
+                                    filled($get('dr_account'))
+                            )
+
+                            ->schema([
+
+                                TextInput::make('name')
+                                    ->label('Account Name')
+                                    ->placeholder(
+                                        'Example: Main Cash Account'
+                                    )
+                                    ->required()
+                                    ->maxLength(255),
+
+                                Hidden::make('account_type')
+                                    ->default(
+                                        SubsidiaryAccount::ACCOUNT_TYPE_CASH
+                                    ),
+
+                            ])
+
+                            ->action(
+                                function (
+                                    array $data,
+                                    Get $get,
+                                    Set $set
+                                ): void {
+
+                                    $vendorId = $get('dr_account');
+
+                                    if (! $vendorId) {
+                                        return;
+                                    }
+
+                                    $vendorAccount =
+                                        SubsidiaryAccount::create([
+                                            'account_id' => $vendorId,
+
+                                            'name' => $data['name'],
+
+                                            'account_type' =>
+                                                SubsidiaryAccount::ACCOUNT_TYPE_CASH,
+
+                                            'type_id' =>
+                                                SubsidiaryAccount::TYPE_VENDOR,
+                                        ]);
+
+                                    // Automatically select new vendor account
+                                    $set(
+                                        'dr_sub_account',
+                                        $vendorAccount->id
+                                    );
+                                }
+                            )
+                    )
+
+                    ->required(),
+
+                    
                         Section::make('Vendor Recent Transactions')
                             ->description('Last 5 sales journal records for the selected vendor.')
                             ->icon('heroicon-o-arrow-up-circle')
@@ -295,65 +438,227 @@ class SalesJournalResource extends Resource
                 ->columns(2)
                 ->schema([
 
-                    /*
-                    * CUSTOMER
-                    */
-                    Select::make('cr_account')
-                        ->label('Customer')
-                        ->options(
-                            Account::query()
+                /*
+                |--------------------------------------------------------------------------
+                | CUSTOMER
+                |--------------------------------------------------------------------------
+                */
+                Select::make('cr_account')
+                    ->label('Customer')
+                    ->options(
+                        Account::query()
+                            ->where(
+                                'type_id',
+                                Account::TYPE_CUSTOMER
+                            )
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray()
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->live()
+                    ->afterStateUpdated(
+                        function (Set $set): void {
+
+                            /*
+                            * Reset customer subsidiary account
+                            * when customer changes.
+                            */
+                            $set('cr_sub_account', null);
+                        }
+                    )
+
+                    ->suffixAction(
+                        Action::make('addCustomer')
+                            ->label('Add Customer')
+                            ->icon('heroicon-o-plus')
+                            ->modalHeading('Add New Customer')
+                            ->modalSubmitActionLabel('Create Customer')
+                            ->modalWidth('2xl')
+
+                            ->schema([
+
+                                TextInput::make('name')
+                                    ->label('Customer Name')
+                                    ->placeholder('Enter customer name')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->columnSpanFull(),
+
+                                TextInput::make('phone')
+                                    ->label('Phone')
+                                    ->placeholder('+880 1XXXXXXXXX')
+                                    ->tel()
+                                    ->maxLength(30),
+
+                                TextInput::make('email')
+                                    ->label('Email')
+                                    ->placeholder('customer@example.com')
+                                    ->email()
+                                    ->maxLength(255),
+
+                                TextInput::make('website')
+                                    ->label('Website')
+                                    ->placeholder('https://example.com')
+                                    ->url()
+                                    ->maxLength(255)
+                                    ->columnSpanFull(),
+
+                                Textarea::make('address')
+                                    ->label('Address')
+                                    ->placeholder('Enter customer address')
+                                    ->rows(3)
+                                    ->columnSpanFull(),
+
+                            ])
+
+                            ->action(
+                                function (
+                                    array $data,
+                                    Set $set
+                                ): void {
+
+                                    $customer = Account::create([
+                                        'name' => $data['name'],
+                                        'phone' => $data['phone'] ?? null,
+                                        'email' => $data['email'] ?? null,
+                                        'website' => $data['website'] ?? null,
+                                        'address' => $data['address'] ?? null,
+
+                                        'type_id' => Account::TYPE_CUSTOMER,
+                                    ]);
+
+                                    /*
+                                    * Automatically select
+                                    * newly created customer.
+                                    */
+                                    $set(
+                                        'cr_account',
+                                        $customer->id
+                                    );
+
+                                    /*
+                                    * Reset customer account.
+                                    */
+                                    $set(
+                                        'cr_sub_account',
+                                        null
+                                    );
+                                }
+                            )
+                    )
+
+                    ->required(),
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | CUSTOMER SUBSIDIARY ACCOUNT
+                |--------------------------------------------------------------------------
+                */
+                Select::make('cr_sub_account')
+                    ->label('Customer Account')
+
+                    ->options(
+                        function (Get $get) {
+
+                            $accountId =
+                                $get('cr_account');
+
+                            if (! $accountId) {
+                                return [];
+                            }
+
+                            return SubsidiaryAccount::query()
+                                ->where(
+                                    'account_id',
+                                    $accountId
+                                )
                                 ->where(
                                     'type_id',
-                                    Account::TYPE_CUSTOMER
+                                    SubsidiaryAccount::TYPE_CUSTOMER
                                 )
                                 ->orderBy('name')
                                 ->pluck('name', 'id')
-                                ->toArray()
-                        )
-                        ->live()
-                        ->afterStateUpdated(
-                            function (Set $set): void {
+                                ->toArray();
+                        }
+                    )
 
-                                /*
-                                * Reset subsidiary account
-                                * when customer changes.
-                                */
-                                $set('cr_sub_account', null);
-                            }
-                        )
-                        ->required(),
+                    ->searchable()
+                    ->preload()
 
-                    /*
-                    * CUSTOMER SUBSIDIARY ACCOUNT
-                    */
-                    Select::make('cr_sub_account')
-                        ->label('Customer Account')
-                        ->options(
-                            function (callable $get) {
+                    ->suffixAction(
+                        Action::make('addCustomerAccount')
+                            ->label('Add Account')
+                            ->icon('heroicon-o-plus')
+                            ->modalHeading('Add Customer Account')
+                            ->modalSubmitActionLabel('Create Account')
+                            ->modalWidth('lg')
 
-                                $accountId =
-                                    $get('cr_account');
+                            ->visible(
+                                fn (Get $get): bool =>
+                                    filled($get('cr_account'))
+                            )
 
-                                if (! $accountId) {
-                                    return [];
+                            ->schema([
+
+                                TextInput::make('name')
+                                    ->label('Account Name')
+                                    ->placeholder(
+                                        'Example: Main Cash Account'
+                                    )
+                                    ->required()
+                                    ->maxLength(255),
+
+                                Hidden::make('account_type')
+                                    ->default(
+                                        SubsidiaryAccount::ACCOUNT_TYPE_CASH
+                                    ),
+
+                            ])
+
+                            ->action(
+                                function (
+                                    array $data,
+                                    Get $get,
+                                    Set $set
+                                ): void {
+
+                                    $customerId =
+                                        $get('cr_account');
+
+                                    if (! $customerId) {
+                                        return;
+                                    }
+
+                                    $customerAccount =
+                                        SubsidiaryAccount::create([
+                                            'account_id' =>
+                                                $customerId,
+
+                                            'name' =>
+                                                $data['name'],
+
+                                            'account_type' =>
+                                                SubsidiaryAccount::ACCOUNT_TYPE_CASH,
+
+                                            'type_id' =>
+                                                SubsidiaryAccount::TYPE_CUSTOMER,
+                                        ]);
+
+                                    /*
+                                    * Automatically select
+                                    * newly created customer account.
+                                    */
+                                    $set(
+                                        'cr_sub_account',
+                                        $customerAccount->id
+                                    );
                                 }
-
-                                return SubsidiaryAccount::query()
-                                    ->where(
-                                        'account_id',
-                                        $accountId
-                                    )
-                                    ->where(
-                                        'type_id',
-                                        SubsidiaryAccount::TYPE_CUSTOMER
-                                    )
-                                    ->orderBy('name')
-                                    ->pluck('name', 'id')
-                                    ->toArray();
-                            }
-                        )
-                        ->required(),
-
+                            )
+                    )
+                    ->required(),
                     /*
                     * LAST 5 CUSTOMER TRANSACTIONS
                     */

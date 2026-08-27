@@ -61,8 +61,8 @@ class CountryResource extends Resource
                     ->rowIndex(),
  
 
-                TextColumn::make('prefix')
-                    ->label('Prefix'),
+                TextColumn::make('currency')
+                    ->label('Currency'),
                     
                 TextColumn::make('name')
                     ->label('Name')
