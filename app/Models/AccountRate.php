@@ -5,10 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class VendorRate extends Model
+class AccountRate extends Model
 {
     protected $fillable = [
-        'vendor_id',
+        'type_id',
         'currency_id',
         'general_to_master',
         'master_to_general',
@@ -17,19 +17,14 @@ class VendorRate extends Model
     ];
 
     protected $casts = [
+        'type_id' => 'integer',
+
         'general_to_master' => 'decimal:8',
         'master_to_general' => 'decimal:8',
+
         'general_to_secondary' => 'decimal:8',
         'secondary_to_general' => 'decimal:8',
     ];
-
-    public function vendor(): BelongsTo
-    {
-        return $this->belongsTo(
-            Account::class,
-            'vendor_id'
-        );
-    }
 
     public function currency(): BelongsTo
     {

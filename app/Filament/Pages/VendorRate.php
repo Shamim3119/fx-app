@@ -4,42 +4,43 @@ namespace App\Filament\Pages;
 
 use App\Models\Account;
 use App\Models\Country;
-use App\Models\CustomerRate as CustomerRateModel;
+use App\Models\AccountRate;
+use App\Models\VendorRate as VendorRateModel;
 
 use BackedEnum;
+use UnitEnum;
+
+use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-
-use Filament\Forms\Components\Hidden;
-
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
+ 
+ 
 
-use Filament\Actions\Action;
-use Filament\Schemas\Components\Component;
-use App\Models\AccountRate;
-
-use UnitEnum;
-
-class CustomerRate extends Page
+class VendorRate extends Page
 {
-    protected static ?string $navigationLabel = 'Customer Rate';
+    protected static bool $shouldRegisterNavigation = true;
 
-    protected static ?string $title = 'Customer Rate';
+    protected static ?string $navigationLabel = 'Vendor Rate';
+
+    protected static ?string $title = 'Vendor Rate';
 
     protected static UnitEnum|string|null $navigationGroup = 'Parameters';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 11;
 
-    protected static ?string $slug ='customer-rate';
+    protected static ?string $slug = 'vendor-rate';
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-building-storefront';
 
-    protected string $view = 'filament.pages.customer-rate';
+    protected string $view = 'filament.pages.vendor-rate';
+ 
 
     public ?array $data = [];
 
@@ -47,12 +48,6 @@ class CustomerRate extends Page
     public function mount(): void
     {
         $this->loadDefaultRates();
-        /*
-        $this->form->fill([
-            'customer_id' => null,
-            'rates' => [],
-        ]);
-        */
     }
 
 
@@ -61,17 +56,19 @@ class CustomerRate extends Page
         return $schema
             ->components([
 
-              
-                    Repeater::make('rates')
-                        ->label('Customer Exchange Rates')
+                /*
+                 * GLOBAL / DEFAULT VENDOR RATES
+                 */
+                Repeater::make('rates')
+                    ->label('Default Vendor Exchange Rates')
                     ->schema([
 
                         Hidden::make('currency_id'),
 
                         /*
-                        * CURRENCY CODES
-                        * Used only for dynamic labels
-                        */
+                         * CURRENCY CODES
+                         * USED FOR DYNAMIC LABELS
+                         */
                         Hidden::make('general_currency_code')
                             ->dehydrated(false),
 
@@ -83,8 +80,8 @@ class CustomerRate extends Page
 
 
                         /*
-                        * GENERAL CURRENCY
-                        */
+                         * GENERAL CURRENCY
+                         */
                         TextInput::make('currency_name')
                             ->label('General Currency')
                             ->disabled()
@@ -92,8 +89,8 @@ class CustomerRate extends Page
 
 
                         /*
-                        * GENERAL TO MASTER
-                        */
+                         * GENERAL TO MASTER
+                         */
                         TextInput::make('general_to_master')
                             ->label(
                                 fn (Get $get): string =>
@@ -106,37 +103,32 @@ class CustomerRate extends Page
                             ->step('0.00000001')
                             ->live(onBlur: true)
                             ->afterStateUpdated(
-                                function ($state, Set $set): void {
+                                function (
+                                    $state,
+                                    Set $set
+                                ): void {
 
                                     $rate = (float) $state;
 
-                                    if ($rate > 0) {
-
-                                        $set(
-                                            'master_to_general',
-                                            number_format(
+                                    $set(
+                                        'master_to_general',
+                                        $rate > 0
+                                            ? number_format(
                                                 1 / $rate,
                                                 8,
                                                 '.',
                                                 ''
                                             )
-                                        );
-
-                                    } else {
-
-                                        $set(
-                                            'master_to_general',
-                                            null
-                                        );
-                                    }
+                                            : null
+                                    );
                                 }
                             )
                             ->required(),
 
 
                         /*
-                        * MASTER TO GENERAL
-                        */
+                         * MASTER TO GENERAL
+                         */
                         TextInput::make('master_to_general')
                             ->label(
                                 fn (Get $get): string =>
@@ -153,8 +145,8 @@ class CustomerRate extends Page
 
 
                         /*
-                        * GENERAL TO SECONDARY
-                        */
+                         * GENERAL TO SECONDARY
+                         */
                         TextInput::make('general_to_secondary')
                             ->label(
                                 fn (Get $get): string =>
@@ -167,37 +159,32 @@ class CustomerRate extends Page
                             ->step('0.00000001')
                             ->live(onBlur: true)
                             ->afterStateUpdated(
-                                function ($state, Set $set): void {
+                                function (
+                                    $state,
+                                    Set $set
+                                ): void {
 
                                     $rate = (float) $state;
 
-                                    if ($rate > 0) {
-
-                                        $set(
-                                            'secondary_to_general',
-                                            number_format(
+                                    $set(
+                                        'secondary_to_general',
+                                        $rate > 0
+                                            ? number_format(
                                                 1 / $rate,
                                                 8,
                                                 '.',
                                                 ''
                                             )
-                                        );
-
-                                    } else {
-
-                                        $set(
-                                            'secondary_to_general',
-                                            null
-                                        );
-                                    }
+                                            : null
+                                    );
                                 }
                             )
                             ->required(),
 
 
                         /*
-                        * SECONDARY TO GENERAL
-                        */
+                         * SECONDARY TO GENERAL
+                         */
                         TextInput::make('secondary_to_general')
                             ->label(
                                 fn (Get $get): string =>
@@ -213,11 +200,11 @@ class CustomerRate extends Page
                             ->required(),
 
                     ])
-                        ->columns(5)
-                        ->addable(false)
-                        ->deletable(false)
-                        ->reorderable(false)
-                        ->columnSpanFull(),
+                    ->columns(5)
+                    ->addable(false)
+                    ->deletable(false)
+                    ->reorderable(false)
+                    ->columnSpanFull(),
 
             ])
             ->statePath('data');
@@ -225,9 +212,8 @@ class CustomerRate extends Page
 
 
     /*
-     * LOAD CUSTOMER RATES
+     * LOAD GLOBAL DEFAULT RATES
      */
- 
     protected function loadDefaultRates(): void
     {
         $currencies = Country::query()
@@ -248,7 +234,7 @@ class CustomerRate extends Page
         $accountRates = AccountRate::query()
             ->where(
                 'type_id',
-                Account::TYPE_CUSTOMER
+                Account::TYPE_VENDOR
             )
             ->get()
             ->keyBy('currency_id');
@@ -321,33 +307,30 @@ class CustomerRate extends Page
 
 
     /*
-     * SAVE CUSTOMER RATES
+     * SAVE GLOBAL DEFAULT RATES
+     * AND APPLY TO ALL VENDORS
      */
     public function save(): void
     {
         $data = $this->form->getState();
 
-        /*
-        * GET ALL CUSTOMERS
-        */
-        $customers = Account::query()
+        $vendors = Account::query()
             ->where(
                 'type_id',
-                Account::TYPE_CUSTOMER
+                Account::TYPE_VENDOR
             )
             ->get();
 
         foreach ($data['rates'] as $rate) {
 
             /*
-            * SAVE CUSTOMER DEFAULT RATE
-            * IN ACCOUNT_RATES
+            * SAVE VENDOR DEFAULT RATE
             */
             AccountRate::updateOrCreate(
 
                 [
                     'type_id' =>
-                        Account::TYPE_CUSTOMER,
+                        Account::TYPE_VENDOR,
 
                     'currency_id' =>
                         $rate['currency_id'],
@@ -371,16 +354,15 @@ class CustomerRate extends Page
 
 
             /*
-            * APPLY SAME DEFAULT RATE
-            * TO ALL INDIVIDUAL CUSTOMERS
+            * APPLY TO ALL VENDORS
             */
-            foreach ($customers as $customer) {
+            foreach ($vendors as $vendor) {
 
-                CustomerRateModel::updateOrCreate(
+                VendorRateModel::updateOrCreate(
 
                     [
-                        'customer_id' =>
-                            $customer->id,
+                        'vendor_id' =>
+                            $vendor->id,
 
                         'currency_id' =>
                             $rate['currency_id'],
@@ -406,47 +388,54 @@ class CustomerRate extends Page
 
         Notification::make()
             ->title(
-                'Customer default rates updated and applied to all customers successfully.'
+                'Vendor default rates updated and applied to all vendors successfully.'
             )
             ->success()
             ->send();
 
-        /*
-        * RELOAD FROM ACCOUNT_RATES
-        */
         $this->loadDefaultRates();
     }
 
 
+    /*
+     * HEADER ACTIONS
+     */
     public function getHeaderActions(): array
     {
         return [
 
-            Action::make('customerRates')
-                ->label('Edit Customer Rate')
+            Action::make('vendorRates')
+                ->label('Edit Vendor Rate')
                 ->icon('heroicon-o-user')
                 ->color('primary')
-                ->modalHeading('Edit Individual Customer Exchange Rates')
-                ->modalDescription(
-                    'Select a customer and customize exchange rates for that customer only. These changes will not affect the global default rates or other customers.'
+                ->modalHeading(
+                    'Edit Individual Vendor Exchange Rates'
                 )
-                ->modalSubmitActionLabel('Save Customer Rates')
+                ->modalDescription(
+                    'Select a vendor and customize exchange rates for that vendor only. These changes will not affect the global default rates or other vendors.'
+                )
+                ->modalSubmitActionLabel(
+                    'Save Vendor Rates'
+                )
 
                 ->schema([
 
                     /*
-                    * SELECT CUSTOMER
-                    */
-                    Select::make('customer_id')
-                        ->label('Customer')
+                     * SELECT VENDOR
+                     */
+                    Select::make('vendor_id')
+                        ->label('Vendor')
                         ->options(
                             Account::query()
                                 ->where(
                                     'type_id',
-                                    Account::TYPE_CUSTOMER
+                                    Account::TYPE_VENDOR
                                 )
                                 ->orderBy('name')
-                                ->pluck('name', 'id')
+                                ->pluck(
+                                    'name',
+                                    'id'
+                                )
                                 ->toArray()
                         )
                         ->searchable()
@@ -460,10 +449,13 @@ class CustomerRate extends Page
                                 Set $set
                             ): void {
 
+                                /*
+                                 * RESET IF NO VENDOR
+                                 */
                                 if (! $state) {
 
                                     $set(
-                                        'customer_rates',
+                                        'vendor_rates',
                                         []
                                     );
 
@@ -472,18 +464,26 @@ class CustomerRate extends Page
 
 
                                 /*
-                                * GET GENERAL CURRENCIES
-                                */
-                                $currencies = Country::query()
-                                    ->where('inactive', 0)
-                                    ->where('currency_type', 1)
-                                    ->orderBy('name')
-                                    ->get();
+                                 * GET GENERAL CURRENCIES
+                                 */
+                                $currencies =
+                                    Country::query()
+                                        ->where(
+                                            'inactive',
+                                            0
+                                        )
+                                        ->where(
+                                            'currency_type',
+                                            1
+                                        )
+                                        ->orderBy('name')
+                                        ->get();
 
 
                                 /*
-                                * GET MASTER AND SECONDARY CODES
-                                */
+                                 * GET MASTER AND
+                                 * SECONDARY CURRENCY CODES
+                                 */
                                 $currencyLabels =
                                     $this->getRateCurrencyLabels();
 
@@ -494,24 +494,24 @@ class CustomerRate extends Page
                                     $currencyLabels['secondary'];
 
 
-                                /*
-                                * PREPARE CUSTOMER RATES
-                                */
                                 $rates = [];
 
 
+                                /*
+                                 * PREPARE VENDOR RATES
+                                 */
                                 foreach (
                                     $currencies as $currency
                                 ) {
 
                                     /*
-                                    * GET EXISTING
-                                    * CUSTOMER-SPECIFIC RATE
-                                    */
-                                    $customerRate =
-                                        CustomerRateModel::query()
+                                     * GET EXISTING
+                                     * VENDOR-SPECIFIC RATE
+                                     */
+                                    $vendorRate =
+                                        VendorRateModel::query()
                                             ->where(
-                                                'customer_id',
+                                                'vendor_id',
                                                 $state
                                             )
                                             ->where(
@@ -532,9 +532,10 @@ class CustomerRate extends Page
                                             $currency->currency .
                                             ')',
 
+
                                         /*
-                                        * DYNAMIC LABEL CODES
-                                        */
+                                         * DYNAMIC LABEL CODES
+                                         */
                                         'general_currency_code' =>
                                             $currency->currency,
 
@@ -546,31 +547,31 @@ class CustomerRate extends Page
 
 
                                         /*
-                                        * CUSTOMER RATE
-                                        *
-                                        * FALL BACK TO DEFAULT
-                                        * COUNTRY RATE
-                                        */
+                                         * VENDOR RATE
+                                         *
+                                         * FALL BACK TO
+                                         * DEFAULT COUNTRY RATE
+                                         */
                                         'general_to_master' =>
-                                            $customerRate
+                                            $vendorRate
                                                 ?->general_to_master
                                             ?? $currency
                                                 ->general_to_master,
 
                                         'master_to_general' =>
-                                            $customerRate
+                                            $vendorRate
                                                 ?->master_to_general
                                             ?? $currency
                                                 ->master_to_general,
 
                                         'general_to_secondary' =>
-                                            $customerRate
+                                            $vendorRate
                                                 ?->general_to_secondary
                                             ?? $currency
                                                 ->general_to_secondary,
 
                                         'secondary_to_general' =>
-                                            $customerRate
+                                            $vendorRate
                                                 ?->secondary_to_general
                                             ?? $currency
                                                 ->secondary_to_general,
@@ -580,10 +581,10 @@ class CustomerRate extends Page
 
 
                                 /*
-                                * FILL CUSTOMER RATES
-                                */
+                                 * FILL VENDOR RATES
+                                 */
                                 $set(
-                                    'customer_rates',
+                                    'vendor_rates',
                                     $rates
                                 );
                             }
@@ -592,10 +593,12 @@ class CustomerRate extends Page
 
 
                     /*
-                    * CUSTOMER RATES
-                    */
-                    Repeater::make('customer_rates')
-                        ->label('Customer Exchange Rates')
+                     * VENDOR RATES
+                     */
+                    Repeater::make('vendor_rates')
+                        ->label(
+                            'Vendor Exchange Rates'
+                        )
                         ->schema([
 
                             Hidden::make('currency_id'),
@@ -617,17 +620,21 @@ class CustomerRate extends Page
 
 
                             /*
-                            * GENERAL CURRENCY
-                            */
-                            TextInput::make('currency_name')
-                                ->label('General Currency')
+                             * GENERAL CURRENCY
+                             */
+                            TextInput::make(
+                                'currency_name'
+                            )
+                                ->label(
+                                    'General Currency'
+                                )
                                 ->disabled()
                                 ->dehydrated(false),
 
 
                             /*
-                            * GENERAL TO MASTER
-                            */
+                             * GENERAL TO MASTER
+                             */
                             TextInput::make(
                                 'general_to_master'
                             )
@@ -677,8 +684,8 @@ class CustomerRate extends Page
 
 
                             /*
-                            * MASTER TO GENERAL
-                            */
+                             * MASTER TO GENERAL
+                             */
                             TextInput::make(
                                 'master_to_general'
                             )
@@ -707,8 +714,8 @@ class CustomerRate extends Page
 
 
                             /*
-                            * GENERAL TO SECONDARY
-                            */
+                             * GENERAL TO SECONDARY
+                             */
                             TextInput::make(
                                 'general_to_secondary'
                             )
@@ -758,8 +765,8 @@ class CustomerRate extends Page
 
 
                             /*
-                            * SECONDARY TO GENERAL
-                            */
+                             * SECONDARY TO GENERAL
+                             */
                             TextInput::make(
                                 'secondary_to_general'
                             )
@@ -795,30 +802,31 @@ class CustomerRate extends Page
                         ->visible(
                             fn (Get $get): bool =>
                                 filled(
-                                    $get('customer_id')
+                                    $get('vendor_id')
                                 )
                         ),
 
                 ])
 
+
                 /*
-                * SAVE INDIVIDUAL CUSTOMER RATE
-                */
+                 * SAVE INDIVIDUAL VENDOR RATE
+                 */
                 ->action(
                     function (
                         array $data
                     ): void {
 
                         foreach (
-                            $data['customer_rates'] ?? []
+                            $data['vendor_rates'] ?? []
                             as $rate
                         ) {
 
-                            CustomerRateModel::updateOrCreate(
+                            VendorRateModel::updateOrCreate(
 
                                 [
-                                    'customer_id' =>
-                                        $data['customer_id'],
+                                    'vendor_id' =>
+                                        $data['vendor_id'],
 
                                     'currency_id' =>
                                         $rate['currency_id'],
@@ -854,7 +862,7 @@ class CustomerRate extends Page
 
                         Notification::make()
                             ->title(
-                                'Customer rates updated successfully.'
+                                'Vendor rates updated successfully.'
                             )
                             ->success()
                             ->send();
@@ -864,6 +872,11 @@ class CustomerRate extends Page
         ];
     }
 
+
+    /*
+     * GET MASTER AND SECONDARY
+     * CURRENCY LABELS
+     */
     protected function getRateCurrencyLabels(): array
     {
         $masterCurrency = Country::query()
@@ -877,10 +890,13 @@ class CustomerRate extends Page
             ->first();
 
         return [
-            'master' => $masterCurrency?->currency ?? 'MST',
-            'secondary' => $secondaryCurrency?->currency ?? 'SEC',
-        ];
-    } 
-    
 
+            'master' =>
+                $masterCurrency?->currency ?? 'MST',
+
+            'secondary' =>
+                $secondaryCurrency?->currency ?? 'SEC',
+
+        ];
+    }
 }
