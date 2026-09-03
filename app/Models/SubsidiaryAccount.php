@@ -44,6 +44,8 @@ class SubsidiaryAccount extends Model
 
     public const ACCOUNT_TYPE_BANK = 2;
 
+    public const ACCOUNT_TYPE_USER = 3;
+
 
     public function getAccountTypeNameAttribute(): string
     {
@@ -52,6 +54,8 @@ class SubsidiaryAccount extends Model
             self::ACCOUNT_TYPE_CASH => 'Cash',
 
             self::ACCOUNT_TYPE_BANK => 'Bank',
+
+            self::ACCOUNT_TYPE_USER => 'User',
 
             default => 'Unknown',
 

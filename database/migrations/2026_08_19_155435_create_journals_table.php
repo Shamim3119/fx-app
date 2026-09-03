@@ -46,6 +46,10 @@ return new class extends Migration
             $table->decimal('cr_secondary_balance', 16, 8)->default(0);  
             $table->unsignedInteger('secondary_currency')->nullable();
             $table->decimal('secondary_balance_profit', 16, 8)->nullable();
+            $table->decimal('master_adjust', 16, 8)->default(0);
+            $table->decimal('secondary_adjust', 16, 8)->default(0);
+
+
             $table->timestamps();
         });
     }

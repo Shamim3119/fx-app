@@ -32,8 +32,10 @@ return new class extends Migration
             /*
              * 1 = Cash
              * 2 = Bank
+             * 3 = User Defined
              */
-            $table->unsignedTinyInteger('account_type');
+            $table->unsignedTinyInteger('account_type')
+            ->default(3);
 
             /*
              * 1 = Company Account

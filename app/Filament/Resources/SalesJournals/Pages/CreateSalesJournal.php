@@ -30,30 +30,64 @@ class CreateSalesJournal extends CreateRecord
         $drAmount = (float) $data['dr_amount'];
         $crAmount = (float) $data['cr_amount'];
 
-        $masterRate = (float) $data['master_rate_input'];
-        $secondaryRate = (float) $data['secondary_rate_input'];
+        $drMasterRate = (float) $data['dr_master_rate'];
+        $crMasterRate = (float) $data['cr_master_rate'];
+
+        $drSecondaryRate = (float) $data['dr_secondary_rate'];
+        $crSecondaryRate = (float) $data['cr_secondary_rate'];
 
         $data['type_id'] = 1;
 
         $data['master_currency'] = $masterCurrency->id;
-        $data['dr_master_rate'] = $masterRate;
-        $data['cr_master_rate'] = $masterRate;
-        $data['dr_master_amount'] = $drAmount * $masterRate;
-        $data['cr_master_amount'] = $crAmount * $masterRate;
 
+        /*
+        |--------------------------------------------------------------------------
+        | DR MASTER
+        |--------------------------------------------------------------------------
+        */
+        $data['dr_master_rate'] = $drMasterRate;
+
+        $data['dr_master_amount'] =
+            $drAmount * $drMasterRate;
+
+        /*
+        |--------------------------------------------------------------------------
+        | CR MASTER
+        |--------------------------------------------------------------------------
+        */
+        $data['cr_master_rate'] = $crMasterRate;
+
+        $data['cr_master_amount'] =
+            $crAmount * $crMasterRate;
+
+        /*
+        |--------------------------------------------------------------------------
+        | SECONDARY CURRENCY
+        |--------------------------------------------------------------------------
+        */
         $data['secondary_currency'] = $secondaryCurrency->id;
-        $data['dr_secondary_rate'] = $secondaryRate;
-        $data['cr_secondary_rate'] = $secondaryRate;
-        // $data['dr_secondary_amount'] = $drAmount * $secondaryRate;
-        
-        $data['cr_secondary_amount'] = $crAmount * $secondaryRate;
-        $data['dr_secondary_amount'] = $data['dr_master_amount'] * $secondaryCurrency->general_to_master;
-        $data['dr_master_amount'] = $data['dr_secondary_amount'] * $secondaryCurrency->master_to_general;
 
-        unset(
-            $data['master_rate_input'],
-            $data['secondary_rate_input']
-        );
+        /*
+        |--------------------------------------------------------------------------
+        | DR SECONDARY
+        |--------------------------------------------------------------------------
+        */
+        $data['dr_secondary_rate'] = $drSecondaryRate;
+
+        $data['dr_secondary_amount'] =
+            $drAmount * $drSecondaryRate;
+
+        /*
+        |--------------------------------------------------------------------------
+        | CR SECONDARY
+        |--------------------------------------------------------------------------
+        */
+        $data['cr_secondary_rate'] = $crSecondaryRate;
+
+        $data['cr_secondary_amount'] =
+            $crAmount * $crSecondaryRate;
+
+ 
 
         return $data;
     }

@@ -109,7 +109,7 @@ class CountrySeeder extends Seeder
             ['id' => 89, 'name' => 'Azerbaijan', 'currency_type' => 1,   'currency' => 'TK', 'prefix' => 'AZ', 'code' => '+994',  'img' => null, 'inactive' => 1, 'created_at' => $now, 'updated_at' => $now],
             ['id' => 90, 'name' => 'Sweden', 'currency_type' => 1,   'currency' => 'TK', 'prefix' => 'SE', 'code' => '+46',  'img' => null, 'inactive' => 1, 'created_at' => $now, 'updated_at' => $now],
             ['id' => 91, 'name' => 'Honduras', 'currency_type' => 1,   'currency' => 'TK', 'prefix' => 'HN', 'code' => '+504',  'img' => null, 'inactive' => 1, 'created_at' => $now, 'updated_at' => $now],
-            ['id' => 92, 'name' => 'United Arab Emirates', 'currency_type' => 1,   'currency' => 'AED', 'prefix' => 'AE', 'code' => '+971',  'img' => null, 'inactive' => 0, 'created_at' => $now, 'updated_at' => $now],
+            ['id' => 92, 'name' => 'United Arab Emirates', 'currency_type' => 3,   'currency' => 'AED', 'prefix' => 'AE', 'code' => '+971',  'img' => null, 'inactive' => 0, 'created_at' => $now, 'updated_at' => $now],
             ['id' => 93, 'name' => 'Hungary', 'currency_type' => 1,   'currency' => 'TK', 'prefix' => 'HU', 'code' => '+36',  'img' => null, 'inactive' => 1, 'created_at' => $now, 'updated_at' => $now],
             ['id' => 94, 'name' => 'Tajikistan', 'currency_type' => 1,   'currency' => 'TK', 'prefix' => 'TJ', 'code' => '+992',  'img' => null, 'inactive' => 1, 'created_at' => $now, 'updated_at' => $now],
             ['id' => 95, 'name' => 'Belarus', 'currency_type' => 1,   'currency' => 'TK', 'prefix' => 'BY', 'code' => '+375',  'img' => null, 'inactive' => 1, 'created_at' => $now, 'updated_at' => $now],

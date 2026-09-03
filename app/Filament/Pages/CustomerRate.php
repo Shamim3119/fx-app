@@ -232,8 +232,8 @@ class CustomerRate extends Page
     {
         $currencies = Country::query()
             ->where('inactive', 0)
-            ->where('currency_type', 1)
-            ->orderBy('name')
+            ->whereIn('currency_type', [1, 2])
+            ->orderBy('currency_type', 'desc')
             ->get();
 
         $currencyLabels = $this->getRateCurrencyLabels();
@@ -476,8 +476,8 @@ class CustomerRate extends Page
                                 */
                                 $currencies = Country::query()
                                     ->where('inactive', 0)
-                                    ->where('currency_type', 1)
-                                    ->orderBy('name')
+                                    ->whereIn('currency_type', [1, 2])
+                                    ->orderBy('currency_type', 'desc')
                                     ->get();
 
 

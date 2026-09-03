@@ -9,6 +9,12 @@ use App\Models\Account;
 use App\Models\Country;
 use App\Models\Journal;
 use App\Models\SubsidiaryAccount;
+use App\Models\AccountRate;
+use App\Models\VendorRate;
+use App\Models\CustomerRate;
+
+
+ 
 
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
@@ -63,7 +69,178 @@ class SalesJournalResource extends Resource
         return $schema->components([
 
 
+            /*
+             |--------------------------------------------------------------------------
+             | BASIC JOURNAL INFORMATION
+             |--------------------------------------------------------------------------
+             */
+
+            Section::make('Sales Journal Information')
+                ->icon('heroicon-o-document-text')
+                ->columns(2)
+                ->schema([
+
+                    Placeholder::make('transaction_date_display')
+                        ->hiddenLabel()
+                        ->content(
+                            'Transaction Date : ' . now()->format('d M, Y')
+                        ),
+
+                    Hidden::make('tan_date')
+                        ->default(
+                            now()
+                        )
+                        ->dehydrated(true),
+
+                    Hidden::make('type_id')
+                        ->default(
+                            self::TYPE_SALES
+                        ),
+
+                    Textarea::make('remarks')
+                        ->label('Remarks')
+                        ->rows(2)
+                        ->columnSpanFull(),
+
+
                     /*
+                     |--------------------------------------------------------------------------
+                     | TRANSACTION CURRENCY
+                     |--------------------------------------------------------------------------
+                     */
+
+                    Select::make('transaction_currency')
+                        ->label('Transaction Currency')
+
+                        ->options(
+                            Country::query()
+                                ->where('inactive', 0)
+                                ->where('currency_type', 1)
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray()
+                        )
+
+                        ->searchable()
+                        ->preload()
+                        ->live()
+
+                        ->afterStateUpdated(
+                            function (
+                                $state,
+                                Get $get,
+                                Set $set
+                            ): void {
+
+                                if (! $state) {
+
+                                    $set('dr_master_rate', null);
+                                    $set('dr_secondary_rate', null);
+
+                                    $set('cr_master_rate', null);
+                                    $set('cr_secondary_rate', null);
+
+                                    return;
+                                }
+
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | VENDOR RATE
+                                |--------------------------------------------------------------------------
+                                */
+                                $vendorId =
+                                    $get('dr_account');
+
+                                if ($vendorId) {
+
+                                    $vendorRates =
+                                        self::getVendorRates(
+                                            (int) $vendorId,
+                                            (int) $state
+                                        );
+
+                                    $set(
+                                        'dr_master_rate',
+                                        $vendorRates['master']
+                                    );
+
+                                    $set(
+                                        'dr_secondary_rate',
+                                        $vendorRates['secondary']
+                                    );
+                                }
+
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | CUSTOMER RATE
+                                |--------------------------------------------------------------------------
+                                */
+                                $customerId =
+                                    $get('cr_account');
+
+                                if ($customerId) {
+
+                                    $customerRates =
+                                        self::getCustomerRates(
+                                            (int) $customerId,
+                                            (int) $state
+                                        );
+
+                                    $set(
+                                        'cr_master_rate',
+                                        $customerRates['master']
+                                    );
+
+                                    $set(
+                                        'cr_secondary_rate',
+                                        $customerRates['secondary']
+                                    );
+                                }
+                            }
+                        )
+
+                        ->required(),
+
+ 
+
+                TextInput::make('dr_amount')
+                    ->label('Amount')
+                    ->numeric()
+                    ->step('0.00000001')
+                    ->live(onBlur: true)
+                    ->afterStateUpdated(
+                        function ($state, Set $set): void {
+
+                            $set('cr_amount', $state);
+
+                        }
+                    )
+                    ->required(),
+
+
+                Hidden::make('cr_amount')
+                    ->label('Credit Amount')
+          
+  
+                    ->live(onBlur: true)
+                    ->afterStateUpdated(
+                        function ($state, Set $set): void {
+
+                            $set('dr_amount', $state);
+
+                        }
+                    )
+                    ->required(),
+
+
+                ]),
+
+
+
+
+            /*
              |--------------------------------------------------------------------------
              | DR ACCOUNT
              |--------------------------------------------------------------------------
@@ -98,9 +275,39 @@ class SalesJournalResource extends Resource
                 ->preload()
                 ->live()
                 ->afterStateUpdated(
-                    function (Set $set): void {
-                        // Reset vendor account when vendor changes
+                    function (
+                        $state,
+                        Get $get,
+                        Set $set
+                    ): void {
+
                         $set('dr_sub_account', null);
+
+                        $currencyId =
+                            $get('transaction_currency');
+
+                        if (! $state || ! $currencyId) {
+
+                            $set('dr_master_rate', null);
+                            $set('dr_secondary_rate', null);
+
+                            return;
+                        }
+
+                        $rates = self::getVendorRates(
+                            (int) $state,
+                            (int) $currencyId
+                        );
+
+                        $set(
+                            'dr_master_rate',
+                            $rates['master']
+                        );
+
+                        $set(
+                            'dr_secondary_rate',
+                            $rates['secondary']
+                        );
                     }
                 )
 
@@ -169,6 +376,16 @@ class SalesJournalResource extends Resource
 
                                 // Reset vendor subsidiary account
                                 $set('dr_sub_account', null);
+                               
+                                if ($vendor) {
+                                    // Automatically create the customer's subsidiary account
+                                    SubsidiaryAccount::create([
+                                        'account_id'   => $vendor->id,
+                                        'name'         => $vendor->name,
+                                        'account_type' => SubsidiaryAccount::ACCOUNT_TYPE_CASH,
+                                        'type_id'      => SubsidiaryAccount::TYPE_VENDOR,
+                                    ]);
+                                }
                             }
                         )
                 )
@@ -201,6 +418,10 @@ class SalesJournalResource extends Resource
                                 ->where(
                                     'type_id',
                                     SubsidiaryAccount::TYPE_VENDOR
+                                )
+                                ->where(
+                                    'account_type',
+                                    SubsidiaryAccount::ACCOUNT_TYPE_USER
                                 )
                                 ->orderBy('name')
                                 ->pluck('name', 'id')
@@ -260,9 +481,6 @@ class SalesJournalResource extends Resource
 
                                             'name' => $data['name'],
 
-                                            'account_type' =>
-                                                SubsidiaryAccount::ACCOUNT_TYPE_CASH,
-
                                             'type_id' =>
                                                 SubsidiaryAccount::TYPE_VENDOR,
                                         ]);
@@ -277,6 +495,74 @@ class SalesJournalResource extends Resource
                     )
 
                     ->required(),
+
+
+
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | VENDOR EXCHANGE RATES
+                    |--------------------------------------------------------------------------
+                    */
+                    Section::make('Vendor Exchange Rates')
+                        ->icon('heroicon-o-currency-dollar')
+                        ->columns(2)
+                        ->visible(
+                            fn (Get $get): bool =>
+                                filled($get('dr_account')) &&
+                                filled($get('transaction_currency'))
+                        )
+                        ->schema([
+
+                            TextInput::make('dr_master_rate')
+                                ->label(
+                                    function (Get $get): string {
+
+                                        $currency = Country::find(
+                                            $get('transaction_currency')
+                                        );
+
+                                        $currencies =
+                                            self::getRateCurrencies();
+
+                                        return '1 ' .
+                                            ($currency?->currency ?? 'GEN') .
+                                            ' = ? ' .
+                                            ($currencies['master']?->currency ?? 'MST');
+                                    }
+                                )
+                                ->numeric()
+                                ->step('0.00000001')
+                                ->readOnly()
+                                ->dehydrated()
+                                ->required(),
+
+                            TextInput::make('dr_secondary_rate')
+                                ->label(
+                                    function (Get $get): string {
+
+                                        $currency = Country::find(
+                                            $get('transaction_currency')
+                                        );
+
+                                        $currencies =
+                                            self::getRateCurrencies();
+
+                                        return '1 ' .
+                                            ($currency?->currency ?? 'GEN') .
+                                            ' = ? ' .
+                                            ($currencies['secondary']?->currency ?? 'SEC');
+                                    }
+                                )
+                                ->numeric()
+                                ->step('0.00000001')
+                                ->readOnly()
+                                ->dehydrated()
+                                ->required(),
+
+                        ])
+                        ->columnSpanFull(),
 
                     
                         Section::make('Vendor Recent Transactions')
@@ -459,13 +745,39 @@ class SalesJournalResource extends Resource
                     ->preload()
                     ->live()
                     ->afterStateUpdated(
-                        function (Set $set): void {
+                        function (
+                            $state,
+                            Get $get,
+                            Set $set
+                        ): void {
 
-                            /*
-                            * Reset customer subsidiary account
-                            * when customer changes.
-                            */
                             $set('cr_sub_account', null);
+
+                            $currencyId =
+                                $get('transaction_currency');
+
+                            if (! $state || ! $currencyId) {
+
+                                $set('cr_master_rate', null);
+                                $set('cr_secondary_rate', null);
+
+                                return;
+                            }
+
+                            $rates = self::getCustomerRates(
+                                (int) $state,
+                                (int) $currencyId
+                            );
+
+                            $set(
+                                'cr_master_rate',
+                                $rates['master']
+                            );
+
+                            $set(
+                                'cr_secondary_rate',
+                                $rates['secondary']
+                            );
                         }
                     )
 
@@ -533,18 +845,22 @@ class SalesJournalResource extends Resource
                                     * Automatically select
                                     * newly created customer.
                                     */
-                                    $set(
-                                        'cr_account',
-                                        $customer->id
-                                    );
+                                    $set( 'cr_account',  $customer->id );
 
                                     /*
                                     * Reset customer account.
                                     */
-                                    $set(
-                                        'cr_sub_account',
-                                        null
-                                    );
+                                    $set( 'cr_sub_account', null );
+
+                                if ($customer) {
+                      
+                                    SubsidiaryAccount::create([
+                                        'account_id'   => $customer->id,
+                                        'name'         => $customer->name,
+                                        'account_type' => SubsidiaryAccount::ACCOUNT_TYPE_CASH,
+                                        'type_id'      => SubsidiaryAccount::TYPE_CUSTOMER,
+                                    ]);
+                                }
                                 }
                             )
                     )
@@ -578,6 +894,10 @@ class SalesJournalResource extends Resource
                                 ->where(
                                     'type_id',
                                     SubsidiaryAccount::TYPE_CUSTOMER
+                                )
+                                ->where(
+                                    'account_type',
+                                    SubsidiaryAccount::ACCOUNT_TYPE_USER
                                 )
                                 ->orderBy('name')
                                 ->pluck('name', 'id')
@@ -640,9 +960,6 @@ class SalesJournalResource extends Resource
                                             'name' =>
                                                 $data['name'],
 
-                                            'account_type' =>
-                                                SubsidiaryAccount::ACCOUNT_TYPE_CASH,
-
                                             'type_id' =>
                                                 SubsidiaryAccount::TYPE_CUSTOMER,
                                         ]);
@@ -659,6 +976,79 @@ class SalesJournalResource extends Resource
                             )
                     )
                     ->required(),
+
+
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | CUSTOMER EXCHANGE RATES
+            |--------------------------------------------------------------------------
+            */
+            Section::make('Customer Exchange Rates')
+                ->icon('heroicon-o-currency-dollar')
+                ->columns(2)
+                ->visible(
+                    fn (Get $get): bool =>
+                        filled($get('cr_account')) &&
+                        filled($get('transaction_currency'))
+                )
+                ->schema([
+
+                    TextInput::make('cr_master_rate')
+                        ->label(
+                            function (Get $get): string {
+
+                                $currency = Country::find(
+                                    $get('transaction_currency')
+                                );
+
+                                $currencies =
+                                    self::getRateCurrencies();
+
+                                return '1 ' .
+                                    ($currency?->currency ?? 'GEN') .
+                                    ' = ? ' .
+                                    ($currencies['master']?->currency ?? 'MST');
+                            }
+                        )
+                        ->numeric()
+                        ->step('0.00000001')
+                        ->readOnly()
+                        ->dehydrated()
+                        ->required(),
+
+                    TextInput::make('cr_secondary_rate')
+                        ->label(
+                            function (Get $get): string {
+
+                                $currency = Country::find(
+                                    $get('transaction_currency')
+                                );
+
+                                $currencies =
+                                    self::getRateCurrencies();
+
+                                return '1 ' .
+                                    ($currency?->currency ?? 'GEN') .
+                                    ' = ? ' .
+                                    ($currencies['secondary']?->currency ?? 'SEC');
+                            }
+                        )
+                        ->numeric()
+                        ->step('0.00000001')
+                        ->readOnly()
+                        ->dehydrated()
+                        ->required(),
+
+                ])
+                ->columnSpanFull(),
+
+
+
+
+
+
                     /*
                     * LAST 5 CUSTOMER TRANSACTIONS
                     */
@@ -803,142 +1193,8 @@ class SalesJournalResource extends Resource
 
                 ]),
 
-            /*
-             |--------------------------------------------------------------------------
-             | BASIC JOURNAL INFORMATION
-             |--------------------------------------------------------------------------
-             */
-
-            Section::make('Sales Journal Information')
-                ->icon('heroicon-o-document-text')
-                ->columns(2)
-                ->schema([
-
-                    DatePicker::make('tan_date')
-                        ->label('Transaction Date')
-                        ->default(now())
-                        ->required(),
-
-                    Hidden::make('type_id')
-                        ->default(
-                            self::TYPE_SALES
-                        ),
-
-                    Textarea::make('remarks')
-                        ->label('Remarks')
-                        ->rows(3)
-                        ->columnSpanFull(),
-
-
-                    /*
-                     |--------------------------------------------------------------------------
-                     | TRANSACTION CURRENCY
-                     |--------------------------------------------------------------------------
-                     */
-
-                    Select::make('transaction_currency')
-                        ->label('Transaction Currency')
-
-                        ->options(
-                            Country::query()
-                                ->where('inactive', 0)
-                                ->where('currency_type', 1)
-                                ->orderBy('name')
-                                ->pluck('name', 'id')
-                                ->toArray()
-                        )
-
-                        ->searchable()
-                        ->preload()
-                        ->live()
-
-                        ->afterStateUpdated(
-                            function ($state, Set $set): void {
-
-                                $currency =
-                                    Country::find($state);
-
-                                if (! $currency) {
-                                    return;
-                                }
-
-                                $set(
-                                    'master_rate_input',
-                                    $currency->general_to_master
-                                );
-
-                                $set(
-                                    'secondary_rate_input',
-                                    $currency->general_to_secondary
-                                );
-                            }
-                        )
-
-                        ->required(),
-
-
-                    /*
-                     |--------------------------------------------------------------------------
-                     | MASTER RATE
-                     |--------------------------------------------------------------------------
-                     */
-
-                    TextInput::make('master_rate_input')
-                        ->label('General → Master Rate')
-                        ->numeric()
-                        ->step('0.00000001')
-                        ->required(),
-
-
-                    /*
-                     |--------------------------------------------------------------------------
-                     | SECONDARY RATE
-                     |--------------------------------------------------------------------------
-                     */
-
-                    TextInput::make('secondary_rate_input')
-                        ->label('General → Secondary Rate')
-                        ->numeric()
-                        ->step('0.00000001')
-                        ->required(),
-
-
-
-                TextInput::make('dr_amount')
-                    ->label('Amount')
-                    ->numeric()
-                    ->step('0.00000001')
-                    ->live(onBlur: true)
-                    ->afterStateUpdated(
-                        function ($state, Set $set): void {
-
-                            $set('cr_amount', $state);
-
-                        }
-                    )
-                    ->required(),
-
-
-                Hidden::make('cr_amount')
-                    ->label('Credit Amount')
-          
-  
-                    ->live(onBlur: true)
-                    ->afterStateUpdated(
-                        function ($state, Set $set): void {
-
-                            $set('dr_amount', $state);
-
-                        }
-                    )
-                    ->required(),
-
-
-                ]),
-
 
  
-
         
             ]);
     }
@@ -1060,6 +1316,240 @@ class SalesJournalResource extends Resource
             'create' =>
                 CreateSalesJournal::route('/create'),
 
+        ];
+    }
+
+
+
+
+
+
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET MASTER / SECONDARY CURRENCY
+    |--------------------------------------------------------------------------
+    */
+    protected static function getRateCurrencies(): array
+    {
+        $masterCurrency = Country::query()
+            ->where('inactive', 0)
+            ->where('currency_type', 3)
+            ->first();
+
+        $secondaryCurrency = Country::query()
+            ->where('inactive', 0)
+            ->where('currency_type', 2)
+            ->first();
+
+        return [
+            'master' => $masterCurrency,
+            'secondary' => $secondaryCurrency,
+        ];
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET VENDOR RATE
+    |--------------------------------------------------------------------------
+    |
+    | Priority:
+    |
+    | 1. VendorRate
+    | 2. AccountRate type Vendor
+    | 3. Country default
+    |
+    */
+    protected static function getVendorRates(
+        ?int $vendorId,
+        ?int $currencyId
+    ): array {
+
+        if (! $currencyId) {
+            return [
+                'master' => null,
+                'secondary' => null,
+            ];
+        }
+
+        $currency = Country::find($currencyId);
+
+        if (! $currency) {
+            return [
+                'master' => null,
+                'secondary' => null,
+            ];
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | 1. VENDOR-SPECIFIC RATE
+        |--------------------------------------------------------------------------
+        */
+        if ($vendorId) {
+
+            $vendorRate = VendorRate::query()
+                ->where('vendor_id', $vendorId)
+                ->where('currency_id', $currencyId)
+                ->first();
+
+            if ($vendorRate) {
+
+                return [
+                    'master' =>
+                        $vendorRate->general_to_master,
+
+                    'secondary' =>
+                        $vendorRate->general_to_secondary,
+                ];
+            }
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | 2. ACCOUNT RATE - VENDOR
+        |--------------------------------------------------------------------------
+        */
+        $accountRate = AccountRate::query()
+            ->where(
+                'type_id',
+                Account::TYPE_VENDOR
+            )
+            ->where(
+                'currency_id',
+                $currencyId
+            )
+            ->first();
+
+        if ($accountRate) {
+
+            return [
+                'master' =>
+                    $accountRate->general_to_master,
+
+                'secondary' =>
+                    $accountRate->general_to_secondary,
+            ];
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | 3. COUNTRY DEFAULT RATE
+        |--------------------------------------------------------------------------
+        */
+        return [
+            'master' =>
+                $currency->general_to_master,
+
+            'secondary' =>
+                $currency->general_to_secondary,
+        ];
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET CUSTOMER RATE
+    |--------------------------------------------------------------------------
+    |
+    | Priority:
+    |
+    | 1. CustomerRate
+    | 2. AccountRate type Customer
+    | 3. Country default
+    |
+    */
+    protected static function getCustomerRates(
+        ?int $customerId,
+        ?int $currencyId
+    ): array {
+
+        if (! $currencyId) {
+            return [
+                'master' => null,
+                'secondary' => null,
+            ];
+        }
+
+        $currency = Country::find($currencyId);
+
+        if (! $currency) {
+            return [
+                'master' => null,
+                'secondary' => null,
+            ];
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | 1. CUSTOMER-SPECIFIC RATE
+        |--------------------------------------------------------------------------
+        */
+        if ($customerId) {
+
+            $customerRate = CustomerRate::query()
+                ->where('customer_id', $customerId)
+                ->where('currency_id', $currencyId)
+                ->first();
+
+            if ($customerRate) {
+
+                return [
+                    'master' =>
+                        $customerRate->general_to_master,
+
+                    'secondary' =>
+                        $customerRate->general_to_secondary,
+                ];
+            }
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | 2. ACCOUNT RATE - CUSTOMER
+        |--------------------------------------------------------------------------
+        */
+        $accountRate = AccountRate::query()
+            ->where(
+                'type_id',
+                Account::TYPE_CUSTOMER
+            )
+            ->where(
+                'currency_id',
+                $currencyId
+            )
+            ->first();
+
+        if ($accountRate) {
+
+            return [
+                'master' =>
+                    $accountRate->general_to_master,
+
+                'secondary' =>
+                    $accountRate->general_to_secondary,
+            ];
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | 3. COUNTRY DEFAULT RATE
+        |--------------------------------------------------------------------------
+        */
+        return [
+            'master' =>
+                $currency->general_to_master,
+
+            'secondary' =>
+                $currency->general_to_secondary,
         ];
     }
 }
